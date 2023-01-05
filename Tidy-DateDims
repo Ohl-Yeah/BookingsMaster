@@ -1,0 +1,62 @@
+create or replace view TIDY_DB.PUBLIC.TIDY_DATEDIMS(
+	"DATEDIMS_ID%",
+	"FISCALDATEDIMS_FK%",
+	DATE,
+	DAYOFMONTH_NUMBER,
+	DAYOFWEEK_NUMBER,
+	DAYOFYEAR_NUMBER,
+	DAYOFWEEK_SHORTNAME,
+	DAYOFWEEK_LONGNAME,
+	WEEK_KEY,
+	IS_WEEKEND,
+	WEEKOFYEAR_NUMBER,
+	WEEKOFMONTH_NUMBER,
+	WEEK_START,
+	WEEK_END,
+	MONTH_KEY,
+	MONTH_NUMBER,
+	MONTH_SHORTNAME,
+	MONTH_LONGNAME,
+	MONTH_START,
+	MONTH_END,
+	QUARTER_KEY,
+	QUARTER_NUMBER,
+	QUARTER_NAME,
+	QUARTER_START,
+	QUARTER_END,
+	YEAR_NUMBER
+) COMMENT='Tidy view of Gregorian calendar date dims'
+ as
+/*
+* ---------------------------------------------------------------------------------------------------------
+* Created         Created By          Description
+* ---------------------------------------------------------------------------------------------------------
+* 11/22/2022      Kevin Bailey        Initial creation
+*/
+SELECT  "DATEDIMS_ID%",
+        "DATEDIMS_ID%" AS "FISCALDATEDIMS_FK%",
+        DATE,
+        DAYOFMONTH_NUMBER,
+        DAYOFWEEK_NUMBER,
+        DAYOFYEAR_NUMBER,
+        DAYOFWEEK_SHORTNAME,
+        DAYOFWEEK_LONGNAME,
+        WEEK_KEY,
+        IS_WEEKEND,
+        WEEKOFYEAR_NUMBER,
+        WEEKOFMONTH_NUMBER,
+        WEEK_START,
+        WEEK_END,
+        MONTH_KEY,
+        MONTH_NUMBER,
+        MONTH_SHORTNAME,
+        MONTH_LONGNAME,
+        MONTH_START,
+        MONTH_END,
+        QUARTER_KEY,
+        QUARTER_NUMBER,
+        QUARTER_NAME,
+        QUARTER_START,
+        QUARTER_END,
+        YEAR_NUMBER
+FROM    UTIL_DB.PUBLIC.DATEDIMS;
