@@ -1,0 +1,348 @@
+create or replace view BUSINESS_LOGIC_DB.PUBLIC.BL_BOOKINGS_MASTER(
+	"BL_BOOKINGS_MASTER_ID%",
+	SALESORDER,
+	SALESORDERLINE,
+	SALESORDER_AND_LINE,
+	ORDERDATE,
+	ENTRYSYSTEMDATE,
+	FIRSTDATEOFSALE,
+	FIRSTCUSTOMERSHIP,
+	FIRSTCUSTOMERSHIP_CORRECTED,
+	MLINESHIPDATE,
+	MIN_PROMISEDATE,
+	MAX_PROMISEDATE,
+	ORDERSTATUS,
+	ORDERSTATUSDESCRIPTION,
+	ORDERSTATUS_AND_DESCRIPTION,
+	ORDERTYPE,
+	ORDERTYPE_DESCRIPTION,
+	ORDERTYPE_AND_DESCRIPTION,
+	ISFUTURE_ORDERDATE,
+	LINETYPE,
+	LINETYPE_DESCRIPTION,
+	LINETYPE_AND_DESCRIPTION,
+	DOCUMENTTYPE,
+	DOCUMENTTYPEDES,
+	DOCUMENTTYPE_AND_DESCRIPTION,
+	CUSTOMER_CLASS,
+	CUSTOMER_CLASS_DESCRIPTION,
+	CUSTOMER_CLASS_AND_DESCRIPTION,
+	CUSTOMER_NUMBER,
+	CUSTOMER_NAME,
+	CUSTOMER_NAME_MASKED COMMENT 'Customer name from sales order table, consumer names hidden',
+	CUSTOMER_MASTER_NAME_MASKED COMMENT 'Customer name from customer master table, consumer names hidden',
+	CUSTOMER_MASTER_NAME,
+	CUSTOMER_NUMBER_AND_NAME_MASKED COMMENT 'Concatenated customer number and name from sales order, consumer names masked',
+	CUSTOMER_NUMBER_AND_MASTER_NAME_MASKED COMMENT 'Concatenated customer number and name from customer master, consumer names masked',
+	CUSTOMER_NUMBER_AND_NAME COMMENT 'Concatenated customer number and name from sales order, consumer names showing',
+	CUSTOMER_NUMBER_AND_MASTER_NAME COMMENT 'Concatenated customer number and name from customer master, consumer names showing',
+	CUSTOMERPONUMBER,
+	ISINTERNATIONAL_CUSTOMER,
+	ISCONSUMER_CUSTOMER,
+	ISFLAGGEDINACTIVE_CUSTOMER,
+	CUSTOMER_EMAIL,
+	CUSTOMER_EMAIL_SALESORDER COMMENT 'Customer email from sales order',
+	SHIPADDRESS1,
+	SHIPADDRESS2,
+	SHIPADDRESS3,
+	SHIPADDRESS3LOC,
+	SHIPADDRESS4,
+	SHIPADDRESS5,
+	SHIPPOSTALCODE,
+	SOLDTOADDR1,
+	SOLDTOADDR2,
+	SOLDTOADDR3,
+	SOLDTOADDR3LOC,
+	SOLDTOADDR4,
+	SOLDTOADDR5,
+	SOLDPOSTALCODE,
+	BRANCH,
+	BRANCH_DESCRIPTION,
+	BRANCH_AND_DESCRIPTION,
+	AGENCY COMMENT 'Agency of salesperson assigned to sales order',
+	AGENCY_MASTER COMMENT 'Agency of salesperson assigned to customer master',
+	SALESPERSON_CODE COMMENT 'From sales order',
+	SALESPERSON_NAME COMMENT 'From sales order',
+	SALESPERSON_CODE_AND_NAME COMMENT 'Concatenated code & name of salesperson assigned to sales order',
+	SALESPERSON_MASTER_CODE COMMENT 'From customer master',
+	SALESPERSON_MASTER_NAME COMMENT 'From customer master',
+	SALESPERSON_MASTER_CODE_AND_NAME COMMENT 'Concatenated code & name of salesperson assigned to customer master',
+	ISACTIVE_SALESPERSON,
+	ISACTIVE_SALESPERSON_MASTER,
+	PRODUCTFAMILY_MASTER,
+	MPRODUCTCLASS,
+	PRODUCTCLASS_DESCRIPTION,
+	PRODUCTCLASS_ORIGINAL_DESCRIPTION,
+	PRODUCTCLASS_MASTER,
+	PRODUCTCLASS_DESCRIPTION_MASTER,
+	PRODUCTCLASS_ORIGINAL_DESCRIPTION_MASTER,
+	MSTOCKCODE,
+	MSTOCKDES,
+	STOCKCODE_MASTER,
+	STOCKCODE_MASTER_DESCRIPTION,
+	MECHANISM,
+	MSHIPQTY,
+	MBACKORDERQTY,
+	MORDERQTY,
+	GROSS_UNIT_COST,
+	GROSS_TOTAL_COST,
+	GROSS_UNIT_BOOKING_VALUE,
+	GROSS_TOTAL_BOOKING_VALUE,
+	IS_KNIFE_LINE COMMENT 'Calculated based on product class',
+	CUSTOM_KNIFE_FLAG COMMENT 'Calculated based on product class, line type, and stock code description',
+	CUTLERY_KNIFE_FLAG COMMENT 'Calculated based on product class, line type, and stock code',
+	LINECATEGORY COMMENT 'Combination of line flags for downstream consumption in Tableau',
+	KNIFEQTY COMMENT 'Order qty if a knife line, 0 otherwise',
+	NCHARGECODE,
+	CHARGEDESCRIPTION,
+	ISNPI_LINEITEM,
+	WAREHOUSE,
+	WAREHOUSE_DESCRIPTION,
+	WAREHOUSE_AND_DESCRIPTION,
+	CUSTOMERSUBCATEGOR,
+	ISOPENORDER,
+	ISPASTDUEORDERLINE
+) as
+/*
+* ---------------------------------------------------------------------------------------------------------
+* Created       CreatedBy           Description
+* ---------------------------------------------------------------------------------------------------------
+* 12/19/2022    Kevin Bailey        Added ISOPENORDER so that backlog data can also be derived from these
+*                                   dataset.
+*                                   Added ISPASTDUEORDERLINE for past due drill down analysis.
+* 12/12/2022    Kevin Bailey        Added CUSTOMER_EMAIL_SALESORDER
+* 12/02/2022    Kevin Bailey        Added field CUSTOMERSUBCATEGOR
+* 11/17/2022    Kevin Bailey        Added line level warehouse fields
+* 11/09/2022    Kevin Bailey        Added STOCKCODE_MASTER
+* 11/03/2022    Kevin Bailey        Added ISNPI_LINEITEM
+* 11/01/2022    Kevin Bailey        Added AGENCY_MASTER, ISACTIVE_SALESPERSON_MASTER fields
+*                                   Added NCHARGECODE and CHARGEDESCRIPTION
+* 10/31/2022    Kevin Bailey        Added line category field based on new function.
+*                                   Added field AGENCY, KNIFEQTY
+* 10/28/2022    Kevin Bailey        Added product class master fields; changed inputs to these functions
+*                                   to be based on the master product class from AE_STOCKCODES rather
+*                                   than AE_SALESORDERLINES
+* 10/26/2022    Kevin Bailey        Added IS_KNIFE_LINE, CUSTOMER_KNIFE_FLAG, and CUTLERY_KNIFE_FLAG
+*                                   fields based on new functions
+* 10/25/2022    Kevin Bailey        Added masked customer names
+* 10/24/2022    Kevin Bailey        Added order type description
+* 10/18/2022    Kevin Bailey        Added STOCKCODE_MASTER_DESCRIPTION field.
+* 10/17/2022    Kevin Bailey        Initial creation
+*
+* Known Issues w/ bookings logic
+* 1) We do not take into account cancelled or de-scoped orders
+* 2) Booking date - we go by order date, but it is possible to back date this
+*    Need a booking date func that compares order date vs. sales order or line 
+*    creation date and outputs a sensible date.
+* 3) Syspro allows for empty string sales order numbers. Care must be taken
+*    when joining SorMaster with SorDetail - if it's not done right, results 
+*    could be slightly off (but probably negligible)
+* 4) State of objects at time x - we do not have a way to run historically
+*    accurate bookings. To do this, we would need to include change
+*    history logic in the bookings views. For example, we need to know when
+*    a sales order was cancelled, so that if we want a bookings figure at time
+*    when that sales order was not cancelled, we will include it in the bookings.
+* 5) Net bookings figures - there is a discount calculation function based on an
+*    existing view, but the calculation is wrong:
+*       - It does not take into account when the discount flag is null
+*       - There are some data quality issues w/ MDISCPCT1, MDISCPCT2, and
+*         MDISCVAL - the numbers don't always jive. For this, will need to make
+*         a decision on what logic to go with, and create a data quality dashboard
+*         highlighting the issues to the business. Will also want to restrict
+*         the data entry to prevent the bad data to begin with.
+*    Overall, tabling the Net bookings value issue for now, since this is not a 
+*    figure that is currently reported out on regularly.
+*                               
+*/
+SELECT   SL."AE_SALESORDERLINE_ID%" AS "BL_BOOKINGS_MASTER_ID%"
+        ,SL.SALESORDER
+        ,SL.SALESORDERLINE
+        ,SL.SALESORDER_AND_LINE
+        /* DATE FIELDS */
+        ,SL.ORDERDATE
+        ,SL.ENTRYSYSTEMDATE
+        ,SL.FIRSTDATEOFSALE
+        // Syspro first customer ship dates are invalid for years
+        // prior to 2018 (inclusive) due to timing between Syspro
+        // data purging and when the first customer ship date was
+        // originally calculated. 
+        // For years 2018 and prior, go by the FIRSTDATEOFSALE
+        // This is still not accurate, but it will be much closer.
+        ,SL.FIRSTCUSTOMERSHIP
+        ,CASE
+            WHEN YEAR( SL.FIRSTCUSTOMERSHIP ) <= 2018 THEN SL.FIRSTDATEOFSALE
+            ELSE FIRSTCUSTOMERSHIP
+         END AS FIRSTCUSTOMERSHIP_CORRECTED
+/***/   // How to calculate a booking date? Need to account for future order dates and 
+        // order dates that don't "jive" with the entry system date
+        ,SL.MLINESHIPDATE
+        ,SL.MIN_PROMISEDATE
+        ,SL.MAX_PROMISEDATE
+        /* STATUS/CONTROL FIELDS */
+        ,SL.ORDERSTATUS
+        ,SL.ORDERSTATUSDESCRIPTION
+        ,CONCAT( IFNULL( SL.ORDERSTATUS, '-' ), ' | ', IFNULL( SL.ORDERSTATUSDESCRIPTION, '-' ) )
+        ,SL.ORDERTYPE
+        ,SL.ORDERTYPE_DESCRIPTION
+        ,CONCAT( SL.ORDERTYPE, ' | ', SL.ORDERTYPE_DESCRIPTION )
+        // Create flag that shows lines for which 
+        // order date is in the future
+        ,CASE 
+            WHEN SL.ORDERDATE > CURRENT_DATE THEN TRUE
+            ELSE FALSE
+         END AS ISFUTURE_ORDERDATE
+/***/   // Need to add order type description @ last layer!
+        ,SL.LINETYPE
+        ,SL.LINETYPE_DESCRIPTION
+        ,CONCAT( IFNULL( SL.LINETYPE, '-' ), ' | ', IFNULL( SL.LINETYPE_DESCRIPTION, '-' ) )
+        ,SL.DOCUMENTTYPE
+        ,SL.DOCUMENTTYPEDES
+        ,CONCAT( IFNULL( SL.DOCUMENTTYPE, '-' ), ' | ', IFNULL( SL.DOCUMENTTYPEDES, '-' ) )
+        /* CUSTOMER FIELDS */
+        ,SL.CUSTOMER_CLASS
+        ,SL.CUSTOMER_CLASS_DESCRIPTION
+        ,CONCAT( SL.CUSTOMER_CLASS, ' | ', SL.CUSTOMER_CLASS_DESCRIPTION )
+        ,SL.CUSTOMER_NUMBER
+        ,SL.CUSTOMER_NAME
+        ,UTIL_DB.PUBLIC.HIDECONSUMERNAME( SL.CUSTOMER_NAME, ISCONSUMER_CUSTOMER ) AS CUSTOMER_NAME_MASKED
+        ,UTIL_DB.PUBLIC.HIDECONSUMERNAME( SL.CUSTOMER_MASTER_NAME, ISCONSUMER_CUSTOMER ) AS CUSTOMER_MASTER_NAME_MASKED
+        ,SL.CUSTOMER_MASTER_NAME
+        ,CONCAT( IFNULL( SL.CUSTOMER_NUMBER, '-' ), ' | ',
+                 IFNULL( UTIL_DB.PUBLIC.HIDECONSUMERNAME( SL.CUSTOMER_NAME, ISCONSUMER_CUSTOMER ), '-' )
+               ) AS CUSTOMER_NUMBER_AND_NAME_MASKED
+        ,CONCAT( IFNULL( SL.CUSTOMER_NUMBER, '-' ), ' | ',
+                 IFNULL( UTIL_DB.PUBLIC.HIDECONSUMERNAME( SL.CUSTOMER_MASTER_NAME, ISCONSUMER_CUSTOMER ), '-' )
+               ) AS CUSTOMER_NUMBER_AND_MASTER_NAME_MASKED
+        ,CONCAT( IFNULL( SL.CUSTOMER_NUMBER, '-' ), ' | ',
+                 IFNULL( SL.CUSTOMER_NAME, '-' )
+               ) AS CUSTOMER_NUMBER_AND_NAME
+        ,CONCAT( IFNULL( SL.CUSTOMER_NUMBER, '-' ), ' | ',
+                 IFNULL( SL.CUSTOMER_MASTER_NAME, '-' )
+               ) AS CUSTOMER_NUMBER_AND_MASTER_NAME
+        ,SL.CUSTOMERPONUMBER
+        ,SL.ISINTERNATIONAL_CUSTOMER
+        ,SL.ISCONSUMER_CUSTOMER
+        ,SL.ISFLAGGEDINACTIVE_CUSTOMER
+        ,SL.CUSTOMER_EMAIL
+        ,SL.CUSTOMER_EMAIL_SALESORDER
+        /* CUSTOMER ADDRESS FIELDS */
+        ,SL.SHIPADDRESS1
+        ,SL.SHIPADDRESS2
+        ,SL.SHIPADDRESS3
+        ,SL.SHIPADDRESS3LOC
+        ,SL.SHIPADDRESS4
+        ,SL.SHIPADDRESS5
+        ,SL.SHIPPOSTALCODE
+        ,SL.SOLDTOADDR1
+        ,SL.SOLDTOADDR2
+        ,SL.SOLDTOADDR3
+        ,SL.SOLDTOADDR3LOC
+        ,SL.SOLDTOADDR4
+        ,SL.SOLDTOADDR5
+        ,SL.SOLDPOSTALCODE
+        /* SALES/OPS ORG FIELDS */
+        ,SL.BRANCH
+        ,SL.BRANCH_DESCRIPTION
+        ,CONCAT( IFNULL( SL.BRANCH, '-' ), ' | ', IFNULL( SL.BRANCH_DESCRIPTION, '-' ) ) AS BRANCH_AND_DESCRIPTION
+        ,SL.AGENCY
+        ,SL.AGENCY_MASTER
+        ,SL.SALESPERSON_CODE
+        ,SL.SALESPERSON_NAME
+        ,CONCAT( IFNULL( SL.SALESPERSON_CODE, '-' ), ' | ', IFNULL( SL.SALESPERSON_NAME, '-' ) ) AS SALESPERSON_CODE_AND_NAME
+        ,SL.SALESPERSON_MASTER_CODE
+        ,SL.SALESPERSON_MASTER_NAME
+        ,CONCAT( IFNULL( SL.SALESPERSON_MASTER_CODE, '-' ), ' | ', IFNULL( SL.SALESPERSON_MASTER_NAME, '-' ) ) AS SALESPERSON_MASTER_CODE_AND_NAME
+        ,SL.ISACTIVE_SALESPERSON
+        ,SL.ISACTIVE_SALESPERSON_MASTER //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        /* PRODUCT FIELDS */
+        ,SL.PRODUCTFAMILY_MASTER
+        ,SL.MPRODUCTCLASS
+        ,SL.PRODUCTCLASS_DESCRIPTION
+        ,SL.PRODUCTCLASS_ORIGINAL_DESCRIPTION
+        ,SL.PRODUCTCLASS_MASTER
+        ,SL.PRODUCTCLASS_DESCRIPTION_MASTER
+        ,SL.PRODUCTCLASS_ORIGINAL_DESCRIPTION_MASTER
+        ,SL.MSTOCKCODE
+        ,SL.MSTOCKDES
+        ,SL.STOCKCODE_MASTER
+        ,SL.STOCKCODE_MASTER_DESCRIPTION
+        ,SL.MECHANISM                   //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        /* QUANTITY FIELDS */
+        ,SL.MSHIPQTY
+        ,SL.MBACKORDERQTY
+        ,SL.MORDERQTY
+        /* VALUE FIELDS */
+        ,SL.MUNITCOST AS "GROSS_UNIT_COST"
+        ,SL.MUNITCOST * SL.MORDERQTY AS "GROSS_TOTAL_COST"
+        ,SL.MPRICE AS "GROSS_UNIT_BOOKING_VALUE"
+        ,SL.MPRICE * SL.MORDERQTY AS "GROSS_TOTAL_BOOKING_VALUE"
+        ,UTIL_DB.PUBLIC.ISKNIFE_LINEITEM( IFNULL( PRODUCTCLASS_MASTER, SL.MPRODUCTCLASS ) ) AS IS_KNIFE_LINE 
+        ,UTIL_DB.PUBLIC.GETCUSTOMKNIFEFLAG( IFNULL( PRODUCTCLASS_MASTER, MPRODUCTCLASS ), 
+                                            LINETYPE, 
+                                            IFNULL( MSTOCKDES, SL.STOCKCODE_MASTER_DESCRIPTION ) ) AS CUSTOM_KNIFE_FLAG
+        ,UTIL_DB.PUBLIC.GETCUTLERYFLAG( IFNULL( PRODUCTCLASS_MASTER, MPRODUCTCLASS ), 
+                                        LINETYPE, MSTOCKCODE ) AS CUTLERY_KNIFE_FLAG
+        ,UTIL_DB.PUBLIC.GETSALESORDERLINECATEGORY( UTIL_DB.PUBLIC.ISKNIFE_LINEITEM( 
+                                                        IFNULL( PRODUCTCLASS_MASTER, MPRODUCTCLASS ) )
+                                                  ,UTIL_DB.PUBLIC.GETCUSTOMKNIFEFLAG( 
+                                                        IFNULL( PRODUCTCLASS_MASTER, MPRODUCTCLASS ), LINETYPE, MSTOCKDES )
+                                                  ,UTIL_DB.PUBLIC.GETCUTLERYFLAG( 
+                                                        IFNULL( PRODUCTCLASS_MASTER, MPRODUCTCLASS ), LINETYPE, MSTOCKCODE ) )
+                                                  AS LINECATEGORY
+        ,CASE
+            WHEN UTIL_DB.PUBLIC.ISKNIFE_LINEITEM( IFNULL( PRODUCTCLASS_MASTER, MPRODUCTCLASS ) ) = TRUE THEN 
+                MORDERQTY
+            ELSE 0
+         END AS KNIFEQTY
+        ,NCHARGECODE
+        ,CHARGEDESCRIPTION
+        ,UTIL_DB.PUBLIC.ISNPI_LINEITEM( ENTRYSYSTEMDATE, 
+                                        FIRSTCUSTOMERSHIP,
+                                        UTIL_DB.PUBLIC.ISKNIFE_LINEITEM( 
+                                                IFNULL( PRODUCTCLASS_MASTER, SL.MPRODUCTCLASS ) ) ) AS ISNPI_LINEITEM
+        ,SALESORDERLINE_WAREHOUSE
+        ,SALESORDERLINE_WAREHOUSE_DESCRIPTION
+        ,CONCAT( IFNULL( SALESORDERLINE_WAREHOUSE, '-' ), ' | ', IFNULL( SALESORDERLINE_WAREHOUSE_DESCRIPTION, '-' ) )
+        ,CUSTOMERSUBCATEGOR
+        ,UTIL_DB.PUBLIC.ISOPENORDER( ORDERSTATUS ) AS ISOPENORDER
+        ,UTIL_DB.PUBLIC.ISPASTDUEORDERLINE( MAX_PROMISEDATE, ORDERSTATUS ) AS ISPASTDUEORDERLINE
+// EXCLUDING NET BOOKINGS CALCULATIONS (SEE NOTE 5)
+//        ,UTIL_DB.PUBLIC.LINEDISCOUNTCALC( SL.MDISCVALFLAG, 
+//                                          SL.MDISCPCT1, 
+//                                          SL.MDISCPCT2, 
+//                                          SL.MDISCVALUE ) AS "UNIT_DISCOUNT_VALUE"
+//        ,UTIL_DB.PUBLIC.LINEDISCOUNTCALC( SL.MDISCVALFLAG, 
+//                                          SL.MDISCPCT1, 
+//                                          SL.MDISCPCT2, 
+//                                          SL.MDISCVALUE ) * SL.MORDERQTY AS "TOTAL_DISCOUNT_VALUE"
+        // Calculate the net booking values based on discounts
+//        ,SL.MPRICE - 
+//            UTIL_DB.PUBLIC.LINEDISCOUNTCALC( SL.MDISCVALFLAG, 
+//                                          SL.MDISCPCT1, 
+//                                          SL.MDISCPCT2, 
+//                                          SL.MDISCVALUE ) AS "NET_UNIT_BOOKING_VALUE"
+//        ,( SL.MPRICE - 
+//            UTIL_DB.PUBLIC.LINEDISCOUNTCALC( SL.MDISCVALFLAG, 
+//                                          SL.MDISCPCT1, 
+//                                          SL.MDISCPCT2, 
+//                                          SL.MDISCVALUE ) ) * SL.MORDERQTY AS "NET_TOTAL_BOOKING_VALUE"        
+FROM    APPLICATION_ENTITY_DB.SYSPROPROD_DBO.AE_SALESORDERLINES AS SL
+WHERE   UTIL_DB.PUBLIC.IsBookingProductClass( SL.MPRODUCTCLASS ) = TRUE
+    // Q: Can order type change? If so, may need to remove this filter in the long run,
+    //    and bring in the order type changes.
+    //    This is more of an order status - just named type in Syspro
+    //    This can change over time - need to use change tables for accurate
+    //    historical bookings report.
+    AND UTIL_DB.PUBLIC.IsBookingOrderStatus( SL.ORDERSTATUS ) = TRUE
+    // Q: Why this filter? Does this value ever change?
+    //    C = Credit note, need to understand business case for credit notes
+    //    May want to include these, especially if we start including cancellations
+    AND ( SL.DOCUMENTTYPE <> 'C' // Remove credit notes
+          OR SL.DOCUMENTTYPE IS NULL )
+    AND ( SL.ISMERCHANDISE_SALESORDERLINE = TRUE 
+          OR SL.ISMERCHANDISE_SALESORDERLINE IS NULL ) // Line types 1, 7 and nulls
+    // This logic copied from ERP_REPORTING_PROD.DMR.VW_SALES_ORDERS
+    // This filters out transferring sales from one warehouse to another
+    // Need to understand the business cases for this field
+    AND ( SL.INTERWHSALE <> 'Y' // Remove supply chain transfers
+          OR SL.INTERWHSALE IS NULL );
