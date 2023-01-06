@@ -1,0 +1,111 @@
+CREATE OR REPLACE FUNCTION UTIL_DB.PUBLIC.IS_RELATIVE_N_TIMESLICE("CALENDAR_DATE" DATE, "DATE_PARTITION" VARCHAR(30), "NEXT_VS_PREV" VARCHAR(5), "N" NUMBER(38,0))
+RETURNS BOOLEAN
+LANGUAGE SQL
+COMMENT='Returns true or false if CALENDAR_DATE is within the specified relative time slice'
+AS '
+    /*
+    * ---------------------------------------------------------------------------------------------------------
+    * Created         CreatedBy           Description
+    * ---------------------------------------------------------------------------------------------------------
+    * 11/28/2022      Kevin Bailey        Initial creation
+    *
+    * PARAMETERS
+    *   CALENDAR_DATE       The calendar date being compared
+    *   DATE_PARTITION      The type of date part being used - e.g., year, quarter, month, date
+    *   NEXT_VS_PREV        Specifies if the evaluation is based on returning pastor future relative slices
+    *   N                   The number of periods in the DATE_PART (e.g., 9 years, 10 days, etc...)
+    */
+    CASE( LOWER( NEXT_VS_PREV ) )
+        WHEN ''next'' THEN 
+            CASE( DATE_PARTITION )
+                WHEN ''year'' THEN
+                    CASE 
+                        WHEN DATE_TRUNC( ''year'', DATEADD( ''year'', N, CURRENT_DATE() ) ) >=
+                             DATE_TRUNC( ''year'', CALENDAR_DATE )
+                             AND
+                             DATE_TRUNC( ''year'', CURRENT_DATE() ) < DATE_TRUNC( ''year'', CALENDAR_DATE )
+                             THEN TRUE
+                        ELSE FALSE
+                    END
+                WHEN ''quarter'' THEN
+                    CASE 
+                        WHEN DATE_TRUNC( ''quarter'', DATEADD( ''quarter'', N, CURRENT_DATE() ) ) >=
+                             DATE_TRUNC( ''quarter'', CALENDAR_DATE )
+                             AND
+                             DATE_TRUNC( ''quarter'', CURRENT_DATE() ) < DATE_TRUNC( ''quarter'', CALENDAR_DATE )
+                             THEN TRUE
+                        ELSE FALSE
+                    END
+                WHEN ''month'' THEN
+                    CASE 
+                        WHEN DATE_TRUNC( ''month'', DATEADD( ''month'', N, CURRENT_DATE() ) ) >=
+                             DATE_TRUNC( ''month'', CALENDAR_DATE )
+                             AND
+                             DATE_TRUNC( ''month'', CURRENT_DATE() ) < DATE_TRUNC( ''month'', CALENDAR_DATE )
+                             THEN TRUE
+                        ELSE FALSE
+                    END
+                WHEN ''week'' THEN
+                    CASE 
+                        WHEN DATE_TRUNC( ''week'', DATEADD( ''week'', N, CURRENT_DATE() ) ) >=
+                             DATE_TRUNC( ''week'', CALENDAR_DATE )
+                             AND
+                             DATE_TRUNC( ''week'', CURRENT_DATE() ) < DATE_TRUNC( ''week'', CALENDAR_DATE )
+                             THEN TRUE
+                        ELSE FALSE
+                    END
+                WHEN ''day'' THEN
+                    CASE 
+                        WHEN DATEDIFF( ''day'', CURRENT_DATE(), CALENDAR_DATE ) >= 0
+                                AND DATEDIFF( ''day'', CURRENT_DATE(), CALENDAR_DATE ) <= N THEN TRUE
+                        ELSE FALSE
+                    END
+            END
+        WHEN ''prev'' THEN 
+            CASE( DATE_PARTITION )
+                WHEN ''year'' THEN
+                    CASE 
+                        WHEN DATE_TRUNC( ''year'', DATEADD( ''year'', -N, CURRENT_DATE() ) ) <=
+                             DATE_TRUNC( ''year'', CALENDAR_DATE )
+                             AND
+                             DATE_TRUNC( ''year'', CURRENT_DATE() ) > DATE_TRUNC( ''year'', CALENDAR_DATE )
+                             THEN TRUE
+                        ELSE FALSE
+                    END
+                WHEN ''quarter'' THEN
+                     CASE 
+                        WHEN DATE_TRUNC( ''quarter'', DATEADD( ''quarter'', -N, CURRENT_DATE() ) ) <=
+                             DATE_TRUNC( ''quarter'', CALENDAR_DATE )
+                             AND
+                             DATE_TRUNC( ''quarter'', CURRENT_DATE() ) > DATE_TRUNC( ''quarter'', CALENDAR_DATE )
+                             THEN TRUE
+                        ELSE FALSE
+                    END
+                WHEN ''month'' THEN
+                    CASE 
+                        WHEN DATE_TRUNC( ''month'', DATEADD( ''month'', -N, CURRENT_DATE() ) ) <=
+                             DATE_TRUNC( ''month'', CALENDAR_DATE )
+                             AND
+                             DATE_TRUNC( ''month'', CURRENT_DATE() ) > DATE_TRUNC( ''month'', CALENDAR_DATE )
+                             THEN TRUE
+                        ELSE FALSE
+                    END
+                WHEN ''week'' THEN
+                    CASE 
+                        WHEN DATE_TRUNC( ''week'', DATEADD( ''week'', -N, CURRENT_DATE() ) ) <=
+                             DATE_TRUNC( ''week'', CALENDAR_DATE )
+                             AND
+                             DATE_TRUNC( ''week'', CURRENT_DATE() ) > DATE_TRUNC( ''week'', CALENDAR_DATE )
+                             THEN TRUE
+                        ELSE FALSE
+                    END
+                WHEN ''day'' THEN
+                    CASE 
+                        WHEN DATEDIFF( ''day'', CURRENT_DATE(), CALENDAR_DATE ) >= -N
+                                AND DATEDIFF( ''day'', CURRENT_DATE(), CALENDAR_DATE ) <= 0 THEN TRUE
+                        ELSE FALSE
+                    END
+            END
+        ELSE NULL
+    END
+    ';
